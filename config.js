@@ -1,0 +1,1 @@
+window.LOTTERY_API = '';

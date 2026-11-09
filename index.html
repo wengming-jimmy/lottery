@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>摸彩程式</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;background:#f4f1ea;color:#222}
+  nav{display:flex;gap:4px;background:#7a1020;padding:8px 12px;align-items:center}
+  nav button{background:transparent;border:0;color:#f5d6a0;font-size:16px;padding:8px 16px;border-radius:6px;cursor:pointer}
+  nav button.active{background:#f5d6a0;color:#7a1020;font-weight:bold}
+  nav .sp{flex:1}
+  .page{display:none;padding:20px;max-width:1100px;margin:0 auto}
+  .page.active{display:block}
+  .card{background:#fff;border-radius:10px;padding:18px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  h2{margin:0 0 12px;font-size:20px;color:#7a1020}
+  input[type=text],input[type=number]{padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:15px}
+  button.btn{padding:8px 14px;border:0;border-radius:6px;background:#7a1020;color:#fff;font-size:15px;cursor:pointer}
+  button.btn.gray{background:#888}
+  button.btn.gold{background:#c9971c}
+  button.btn:disabled{opacity:.4;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:15px}
+  th,td{border-bottom:1px solid #eee;padding:7px 6px;text-align:left}
+  th{background:#faf6ee}
+  .muted{color:#777;font-size:13px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  textarea{width:100%;height:110px;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px}
+  .scroll{max-height:320px;overflow:auto}
+  /* ===== 魔法風格抽獎畫面 ===== */
+  nav{background:linear-gradient(90deg,#1a0b3d,#3b1470);border-bottom:1px solid #d4af37}
+  nav button{color:#e9d8a6}
+  nav button.active{background:#d4af37;color:#1a0b3d}
+  h2{color:#4b1d8f}
+  button.btn{background:#4b1d8f}
+  #drawPage{max-width:none;padding:0}
+  .stage{position:relative;overflow:hidden;min-height:calc(100vh - 52px);color:#f3e7c3;text-align:center;padding:24px 20px 40px;
+    background:radial-gradient(ellipse at 50% 40%,#3a1a78 0%,#1b0b40 45%,#07021a 100%);font-family:"Cinzel","Noto Serif TC","PMingLiU",serif}
+  #fx{position:absolute;inset:0;pointer-events:none;z-index:0}
+  .stage>*:not(#fx){position:relative;z-index:1}
+  .stage h1{font-size:50px;margin:0;letter-spacing:6px;color:#ffe9a8;text-shadow:0 0 12px #d4af37,0 0 30px #9b59ff}
+  .sub{opacity:.75;letter-spacing:4px;margin-bottom:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px auto 6px;max-width:1000px}
+  .chip{border:1px solid #d4af37;background:rgba(20,8,50,.6);color:#e9d8a6;border-radius:20px;padding:6px 16px;font-size:16px;cursor:pointer;font-family:inherit}
+  .chip.on{background:linear-gradient(135deg,#d4af37,#f7e08a);color:#2a0f55;box-shadow:0 0 14px #d4af37;font-weight:bold}
+  .chip.done{opacity:.45}
+  .remain{font-size:17px;opacity:.85;margin-top:4px}
+  .altar{position:relative;width:440px;height:440px;margin:6px auto 0;display:flex;align-items:center;justify-content:center}
+  .ring{position:absolute;inset:0;animation:spin 40s linear infinite}
+  .ring.r2{inset:40px;animation:spin 25s linear infinite reverse}
+  .altar.casting .ring{animation-duration:3s}.altar.casting .ring.r2{animation-duration:2s}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .orb{position:relative;width:250px;height:250px;border-radius:50%;border:3px solid #f7e08a;cursor:pointer;color:#fff8dc;font-family:inherit;
+    background:radial-gradient(circle at 35% 30%,#d9b8ff 0%,#8a3ffc 30%,#3d0f8f 70%,#1a0540 100%);
+    box-shadow:0 0 25px #b57bff,0 0 60px #7b2cff,inset 0 0 40px rgba(255,255,255,.25);animation:pulse 2.4s ease-in-out infinite;transition:transform .15s}
+  .orb:hover{transform:scale(1.05)}
+  .orb:active{transform:scale(.96)}
+  .orb:disabled{filter:grayscale(.7);cursor:not-allowed;animation:none}
+  .altar.casting .orb{animation:pulse .5s ease-in-out infinite;background:radial-gradient(circle at 35% 30%,#fff3c4 0%,#ffb347 30%,#c2410c 75%,#4a1505 100%);box-shadow:0 0 30px #ffcf6b,0 0 90px #ff8c1a}
+  @keyframes pulse{0%,100%{box-shadow:0 0 25px #b57bff,0 0 60px #7b2cff,inset 0 0 40px rgba(255,255,255,.25)}50%{box-shadow:0 0 45px #e0c3ff,0 0 110px #9b4dff,inset 0 0 50px rgba(255,255,255,.4)}}
+  .orb .aw{display:block;font-size:40px;font-weight:bold;text-shadow:0 0 10px #000,0 0 18px #f7e08a;line-height:1.2}
+  .orb .it{display:block;font-size:18px;margin-top:6px;padding:0 20px;opacity:.95}
+  .orb .act{display:block;font-size:15px;margin-top:10px;letter-spacing:4px;color:#ffe9a8}
+  .roller{margin:10px auto;width:min(860px,94%);min-height:200px;border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:center;
+    background:linear-gradient(180deg,rgba(30,10,70,.75),rgba(10,3,30,.85));border:2px solid #d4af37;box-shadow:0 0 30px rgba(155,89,255,.5),inset 0 0 30px rgba(212,175,55,.15)}
+  .roller .digits{font-size:110px;font-weight:bold;letter-spacing:10px;color:#ffe9a8;text-shadow:0 0 16px #d4af37,0 0 40px #9b59ff;font-family:"Consolas","Courier New",monospace}
+  .roller .no{font-size:38px;color:#ffe9a8;letter-spacing:6px}
+  .roller .nm{font-size:88px;font-weight:bold;line-height:1.15;color:#fff;text-shadow:0 0 18px #f7e08a,0 0 40px #b57bff}
+  .roller .tt{font-size:30px;color:#e9d8a6}
+  .roller .hint{font-size:26px;opacity:.6;letter-spacing:6px}
+  .roller.win{animation:reveal .8s ease-out}
+  @keyframes reveal{0%{transform:scale(.6);filter:blur(8px) brightness(3);opacity:0}60%{transform:scale(1.08);filter:blur(0) brightness(1.6);opacity:1}100%{transform:scale(1);filter:none}}
+  .sec{font-family:inherit;font-size:19px;padding:10px 28px;border-radius:30px;border:1px solid #d4af37;background:rgba(20,8,50,.6);color:#ffe9a8;cursor:pointer;margin-top:6px}
+  .winners{margin:18px auto 0;width:min(860px,94%);font-size:18px}
+  .winners span{display:inline-block;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.4);border-radius:6px;padding:4px 10px;margin:4px}
+  .void{text-decoration:line-through;opacity:.5}
+</style>
+</head>
+<body>
+<nav>
+  <button data-p="drawPage" class="active">🎁 抽獎畫面</button>
+  <button data-p="adminPage">⚙️ 後台設定</button>
+  <button data-p="resultPage">📋 中獎名單</button>
+  <span class="sp"></span>
+  <span id="syncStat" style="color:#e9d8a6;font-size:14px;margin-right:8px"></span>
+  <button onclick="setPw()">🔑 密碼</button>
+  <button onclick="toggleFS()">⛶ 全螢幕</button>
+</nav>
+
+<!-- 抽獎畫面 -->
+<div class="page active" id="drawPage">
+  <div class="stage">
+    <canvas id="fx"></canvas>
+    <h1 id="stageTitle">摸彩活動</h1>
+    <div class="sub">✦ 命運之輪 ✦</div>
+    <div class="chips" id="prizeChips"></div>
+    <div class="remain" id="remainInfo"></div>
+    <div class="altar" id="altar">
+      <svg class="ring" viewBox="0 0 440 440"><defs><path id="cp1" d="M220,220 m-200,0 a200,200 0 1,1 400,0 a200,200 0 1,1 -400,0"/></defs>
+        <circle cx="220" cy="220" r="214" fill="none" stroke="#d4af37" stroke-width="2"/><circle cx="220" cy="220" r="186" fill="none" stroke="#d4af37" stroke-width="1" stroke-dasharray="4 6"/>
+        <text fill="#e9d8a6" font-size="17" letter-spacing="6"><textPath href="#cp1">ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ✦ 幸 運 降 臨 ✦ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ ✦ 好 運 滿 載 ✦ ᛇ ᛈ ᛉ ᛊ ᛏ ᛒ ✦ 魔 法 摸 彩 ✦</textPath></text></svg>
+      <svg class="ring r2" viewBox="0 0 360 360"><g fill="none" stroke="#b57bff" stroke-width="1.5"><circle cx="180" cy="180" r="176"/>
+        <polygon points="180,6 331,267 29,267"/><polygon points="180,354 29,93 331,93"/></g></svg>
+      <button class="orb" id="drawBtn" onclick="drawToggle()"><span class="aw" id="orbAward">—</span><span class="it" id="orbItem"></span><span class="act" id="orbAct">點擊施法</span></button>
+    </div>
+    <div class="roller" id="roller"><div class="hint">✧ 等待命運揭曉 ✧</div></div>
+    <button class="sec" id="redrawBtn" onclick="redraw()" style="display:none">✦ 此人不在場，重新施法 ✦</button>
+    <div class="winners" id="stageWinners"></div>
+  </div>
+</div>
+
+<!-- 後台 -->
+<div class="page" id="adminPage">
+  <div class="card">
+    <h2>活動名稱</h2>
+    <div class="row">
+      <input type="text" id="eventName" style="flex:1;min-width:260px" placeholder="例如：2026 年終摸彩">
+      <button class="btn" onclick="saveEventName()">儲存</button>
+    </div>
+    <label class="row"><input type="checkbox" id="allowRepeat" onchange="S.allowRepeat=this.checked;save()"> 同一人可重複中獎（預設不行）</label>
+  </div>
+
+  <div class="card">
+    <h2>參加名單 <span class="muted" id="pCount"></span></h2>
+    <p class="muted">欄位順序：號碼、姓名、職稱。可上傳 Excel（.xlsx / .xls）或 CSV；第一列若是標題會自動略過。也可以直接從 Excel 複製貼上到下方。</p>
+    <div class="row">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.txt">
+      <button class="btn gray" onclick="downloadTemplate()">下載範例 CSV</button>
+      <button class="btn gray" onclick="clearParticipants()">清空名單</button>
+    </div>
+    <textarea id="pasteBox" placeholder="001	王小明	會長&#10;002	陳大華	秘書"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" onclick="importPaste(false)">取代名單</button>
+      <button class="btn gold" onclick="importPaste(true)">加入名單</button>
+    </div>
+    <div class="scroll"><table><thead><tr><th>號碼</th><th>姓名</th><th>職稱</th><th>狀態</th><th></th></tr></thead><tbody id="pTable"></tbody></table></div>
+  </div>
+
+  <div class="card">
+    <h2>獎項設定</h2>
+    <p class="muted">順序就是抽獎畫面的順序。「可重抽」打勾時，中獎人不在場可作廢重抽。</p>
+    <table>
+      <thead><tr><th>獎項名稱</th><th>品名</th><th style="width:90px">數量</th><th style="width:70px">可重抽</th><th style="width:90px">已抽出</th><th style="width:150px"></th></tr></thead>
+      <tbody id="prizeTable"></tbody>
+    </table>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="addPrize()">＋ 新增獎項</button></div>
+  </div>
+
+  <div class="card">
+    <h2>資料管理</h2>
+    <div class="row">
+      <button class="btn gray" onclick="resetResults()">清除所有中獎紀錄（保留名單與獎項）</button>
+      <button class="btn gray" onclick="exportBackup()">備份全部設定</button>
+      <label class="btn gray" style="cursor:pointer">還原備份<input type="file" accept=".json" style="display:none" onchange="importBackup(this)"></label>
+    </div>
+    <div class="row"><button class="btn" onclick="cloudLoad(true)">從試算表重新載入</button></div>
+    <p class="muted">每次修改都會自動寫回 Google 試算表，同時在這台電腦留一份備份；網路斷了也能繼續抽，恢復後下一次修改會整份同步回去。管理密碼在試算表「設定」分頁可以改。</p>
+  </div>
+</div>
+
+<!-- 中獎名單 -->
+<div class="page" id="resultPage">
+  <div class="card">
+    <h2>中獎名單</h2>
+    <div class="row"><button class="btn" onclick="exportResults()">匯出 Excel 可開的 CSV</button><span class="muted">劃線的是不在場、已作廢重抽的紀錄。</span></div>
+    <table><thead><tr><th>獎項</th><th>品名</th><th>號碼</th><th>姓名</th><th>職稱</th><th>時間</th><th>狀態</th></tr></thead><tbody id="resultTable"></tbody></table>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+const KEY='lottery_app_v1';
+let S=JSON.parse(localStorage.getItem(KEY)||'null')||{
+  eventName:'摸彩活動',allowRepeat:false,participants:[],
+  prizes:[{id:uid(),award:'頭獎',item:'',qty:1,redraw:true},{id:uid(),award:'二獎',item:'',qty:2,redraw:true},{id:uid(),award:'三獎',item:'',qty:3,redraw:true}],
+  results:[]
+};
+function uid(){return Math.random().toString(36).slice(2,10)}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));cloudSave()}
+// ===== 雲端同步（Google 試算表）=====
+const API=(window.LOTTERY_API||'').trim();
+let saveTimer=null,saving=false,pending=false;
+function stat(t){const e=document.getElementById('syncStat');if(e)e.textContent=t}
+function getPw(){let p=localStorage.getItem('lottery_pw');if(!p){p=prompt('請輸入管理密碼（寫入試算表用）');if(p)localStorage.setItem('lottery_pw',p)}return p}
+function setPw(){const p=prompt('請輸入管理密碼');if(p===null)return;localStorage.setItem('lottery_pw',p);api({action:'check'}).then(r=>{alert(r.ok?'密碼正確，已連線試算表':'密碼錯誤');if(!r.ok)localStorage.removeItem('lottery_pw')})}
+async function api(body){body.password=localStorage.getItem('lottery_pw')||'';
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});return r.json()}
+function cloudSave(){if(!API)return;clearTimeout(saveTimer);saveTimer=setTimeout(doCloudSave,400)}
+async function doCloudSave(){
+  if(saving){pending=true;return}
+  if(!getPw()){stat('⚠ 未輸入密碼，只存本機');return}
+  saving=true;stat('☁ 同步中…');
+  try{const r=await api({action:'saveAll',data:S});
+    if(r.ok)stat('☁ 已同步試算表');
+    else if(r.error==='auth'){localStorage.removeItem('lottery_pw');stat('⚠ 密碼錯誤，只存本機');alert('管理密碼錯誤，請按上方「🔑 密碼」重新輸入')}
+    else stat('⚠ 同步失敗：'+r.error)}
+  catch(e){stat('⚠ 離線，只存本機')}
+  saving=false;if(pending){pending=false;doCloudSave()}
+}
+async function cloudLoad(manual){
+  if(!API){stat('本機模式');return}
+  stat('☁ 讀取試算表…');
+  try{const r=await (await fetch(API)).json();
+    if(r.ok){S=r.data;localStorage.setItem(KEY,JSON.stringify(S));renderAll();stat('☁ 已連線試算表');if(manual)alert('已從試算表重新載入')}
+    else stat('⚠ 讀取失敗')}
+  catch(e){stat('⚠ 離線，使用本機資料')}
+}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+// 導覽
+document.querySelectorAll('nav button[data-p]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button[data-p]').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(b.dataset.p).classList.add('active');renderAll();fit();
+});
+function toggleFS(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+
+// 統計
+const wonOf=pid=>S.results.filter(r=>r.prizeId===pid&&r.status==='won');
+function excludedNos(){ // 已中獎或不在場的人
+  const set=new Set();
+  S.results.forEach(r=>{if(r.status==='void'||!S.allowRepeat)set.add(r.no)});
+  return set;
+}
+function pool(){const ex=excludedNos();return S.participants.filter(p=>!ex.has(p.no))}
+
+// ===== 後台 =====
+function saveEventName(){S.eventName=document.getElementById('eventName').value.trim()||'摸彩活動';save();renderAll();alert('已儲存')}
+function parseRows(rows){
+  rows=rows.map(r=>r.map(c=>String(c??'').trim())).filter(r=>r.some(c=>c));
+  if(rows.length&&/號碼|編號|姓名|職稱|no|name/i.test(rows[0].join('')))rows.shift();
+  return rows.map(r=>({no:r[0]||'',name:r[1]||'',title:r[2]||''})).filter(p=>p.no||p.name);
+}
+function parseCSV(t){
+  t=t.replace(/^\uFEFF/,'');const rows=[];let row=[],cur='',q=false;
+  const delim=t.split('\n')[0].includes('\t')?'\t':',';
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c=='"'){if(t[i+1]=='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c=='"')q=true;else if(c==delim){row.push(cur);cur=''}
+    else if(c=='\n'||c=='\r'){if(c=='\r'&&t[i+1]=='\n')i++;row.push(cur);rows.push(row);row=[];cur=''}
+    else cur+=c}
+  row.push(cur);rows.push(row);return rows;
+}
+function setParticipants(list,append){
+  if(!append&&S.results.length&&!confirm('已有中獎紀錄，取代名單後紀錄仍會保留。確定？'))return;
+  let all=append?S.participants.concat(list):list;
+  const seen=new Set(),dup=[];
+  all=all.filter(p=>{const k=p.no||p.name;if(seen.has(k)){dup.push(k);return false}seen.add(k);return true});
+  S.participants=all;save();renderAll();
+  alert(`名單共 ${all.length} 人`+(dup.length?`\n略過重複號碼：${dup.slice(0,10).join('、')}${dup.length>10?'…':''}`:''));
+}
+document.getElementById('fileInput').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  if(/\.(xlsx|xls)$/i.test(f.name)){
+    if(typeof XLSX==='undefined'){alert('讀 Excel 需要網路。離線時請在 Excel 另存為 CSV，或直接複製貼上。');return}
+    rd.onload=ev=>{const wb=XLSX.read(ev.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];
+      setParticipants(parseRows(XLSX.utils.sheet_to_json(ws,{header:1,raw:false})),false)};
+    rd.readAsArrayBuffer(f);
+  }else{
+    rd.onload=ev=>{let t=ev.target.result;
+      if(t.includes('\uFFFD')){const r2=new FileReader();r2.onload=e2=>setParticipants(parseRows(parseCSV(e2.target.result)),false);r2.readAsText(f,'big5');return}
+      setParticipants(parseRows(parseCSV(t)),false)};
+    rd.readAsText(f,'utf-8');
+  }
+  e.target.value='';
+};
+function importPaste(append){const t=document.getElementById('pasteBox').value;if(!t.trim())return;setParticipants(parseRows(parseCSV(t)),append);document.getElementById('pasteBox').value=''}
+function clearParticipants(){if(confirm('確定清空名單？'))setParticipants([],false)}
+function delParticipant(i){S.participants.splice(i,1);save();renderAll()}
+function downloadTemplate(){dl('名單範例.csv','\uFEFF號碼,姓名,職稱\n001,王小明,會長\n002,陳大華,秘書\n')}
+
+function addPrize(){S.prizes.push({id:uid(),award:'新獎項',item:'',qty:1,redraw:true});save();renderAll()}
+function updPrize(i,k,v){const p=S.prizes[i];if(k==='qty'){v=Math.max(1,parseInt(v)||1);if(v<wonOf(p.id).length){alert('數量不能少於已抽出人數');renderAll();return}}p[k]=v;save();renderStage()}
+function movePrize(i,d){const j=i+d;if(j<0||j>=S.prizes.length)return;[S.prizes[i],S.prizes[j]]=[S.prizes[j],S.prizes[i]];save();renderAll()}
+function delPrize(i){const p=S.prizes[i];if(!confirm(`刪除「${p.award}」？${wonOf(p.id).length?'此獎項的中獎紀錄也會刪除。':''}`))return;S.results=S.results.filter(r=>r.prizeId!==p.id);S.prizes.splice(i,1);save();renderAll()}
+function resetResults(){if(confirm('確定清除所有中獎紀錄？此動作無法復原。')){S.results=[];save();renderAll()}}
+function exportBackup(){dl(`${S.eventName}_備份.json`,JSON.stringify(S,null,1))}
+function importBackup(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{S=JSON.parse(e.target.result);save();renderAll();alert('已還原')}catch(x){alert('檔案格式不對')}};r.readAsText(f);inp.value=''}
+
+// ===== 抽獎 =====
+let rolling=null,current=null,lastWin=null;
+let selId=null;
+function selPrize(){return S.prizes.find(p=>p.id===selId)}
+function pickPrize(id){if(rolling)return;selId=id;lastWin=null;renderStage()}
+function showPerson(p,win){const r=document.getElementById('roller');r.classList.remove('win');
+  if(!win){r.innerHTML=`<div class="digits">${esc(p.no)}</div>`;return}
+  r.innerHTML=`<div class="no">No. ${esc(p.no)}</div><div class="nm">${esc(p.name)}</div><div class="tt">${esc(p.title)}</div>`;
+  void r.offsetWidth;r.classList.add('win');burst()}
+function drawToggle(){
+  const pz=selPrize();if(!pz)return;
+  if(rolling){ // 停
+    clearInterval(rolling);rolling=null;
+    const pl=pool();const w=pl[cryptoRand(pl.length)];
+    S.results.push({id:uid(),prizeId:pz.id,no:w.no,name:w.name,title:w.title,status:'won',time:new Date().toLocaleString('zh-TW',{hour12:false})});
+    lastWin={prizeId:pz.id,no:w.no};save();document.getElementById('altar').classList.remove('casting');showPerson(w,true);renderStage(true);return;
+  }
+  const pl=pool();
+  if(!pl.length){alert('沒有可抽的人了');return}
+  if(wonOf(pz.id).length>=pz.qty){alert('這個獎項已經抽完');return}
+  lastWin=null;document.getElementById('redrawBtn').style.display='none';
+  rolling=setInterval(()=>showPerson(pl[Math.floor(Math.random()*pl.length)]),55);
+  document.getElementById('altar').classList.add('casting');document.getElementById('orbAct').textContent='✦ 停 ✦';
+}
+function cryptoRand(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
+function redraw(){
+  if(!lastWin)return;const r=[...S.results].reverse().find(x=>x.prizeId===lastWin.prizeId&&x.no===lastWin.no&&x.status==='won');
+  if(!r)return;r.status='void';save();lastWin=null;
+  renderStage(true);drawToggle();
+}
+
+// ===== 畫面 =====
+function renderStage(keepRoller){
+  document.getElementById('stageTitle').textContent=S.eventName;document.title=S.eventName+' 摸彩';
+  if(!selPrize()){const nx=S.prizes.find(p=>wonOf(p.id).length<p.qty)||S.prizes[0];selId=nx?nx.id:null}
+  document.getElementById('prizeChips').innerHTML=S.prizes.map(p=>{const d=wonOf(p.id).length;
+    return `<button class="chip ${p.id===selId?'on':''} ${d>=p.qty?'done':''}" onclick="pickPrize('${p.id}')">${esc(p.award)}（${d}/${p.qty}）</button>`}).join('');
+  const pz=selPrize();const btn=document.getElementById('drawBtn');
+  if(!pz){document.getElementById('orbAward').textContent='尚無獎項';document.getElementById('orbItem').textContent='請到後台設定';document.getElementById('orbAct').textContent='';btn.disabled=true;return}
+  const done=wonOf(pz.id).length;
+  document.getElementById('orbAward').textContent=pz.award;
+  document.getElementById('orbItem').textContent=pz.item+(pz.qty>1?`（${pz.qty} 名）`:'');
+  document.getElementById('remainInfo').textContent=`已抽出 ${done} 名，尚餘 ${pz.qty-done} 名｜可抽人數 ${pool().length} 人`;
+  if(!rolling){document.getElementById('orbAct').textContent=done>=pz.qty?'已抽完':'✦ 點擊施法 ✦';btn.disabled=done>=pz.qty||!pool().length}
+  document.getElementById('redrawBtn').style.display=(lastWin&&lastWin.prizeId===pz.id&&pz.redraw&&!rolling)?'inline-block':'none';
+  document.getElementById('stageWinners').innerHTML=S.results.filter(r=>r.prizeId===pz.id).map(r=>`<span class="${r.status==='void'?'void':''}">${esc(r.no)} ${esc(r.name)}</span>`).join('');
+  if(!lastWin&&!rolling)document.getElementById('roller').innerHTML='<div class="hint">✧ 等待命運揭曉 ✧</div>';
+}
+// ===== 星空與魔法粒子 =====
+const cv=document.getElementById('fx'),cx=cv.getContext('2d');let stars=[],parts=[];
+function fit(){cv.width=cv.offsetWidth;cv.height=cv.offsetHeight;stars=Array.from({length:160},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.6+.3,p:Math.random()*6.28}))}
+function burst(){const r=document.getElementById('roller').getBoundingClientRect(),c=cv.getBoundingClientRect();
+  const ox=r.left-c.left+r.width/2,oy=r.top-c.top+r.height/2;
+  for(let i=0;i<220;i++){const a=Math.random()*6.28,v=Math.random()*9+2;parts.push({x:ox,y:oy,vx:Math.cos(a)*v,vy:Math.sin(a)*v-2,l:1,c:['#ffe9a8','#d4af37','#b57bff','#ffffff','#ff9ad5'][i%5],s:Math.random()*3+1})}}
+function loop(){cx.clearRect(0,0,cv.width,cv.height);const t=Date.now()/600;
+  stars.forEach(s=>{cx.globalAlpha=.4+.6*Math.abs(Math.sin(t+s.p));cx.fillStyle='#fff';cx.beginPath();cx.arc(s.x,s.y,s.r,0,6.28);cx.fill()});
+  if(rolling&&Math.random()<.6){const a=document.getElementById('altar').getBoundingClientRect(),c=cv.getBoundingClientRect();
+    parts.push({x:a.left-c.left+a.width/2+(Math.random()-.5)*300,y:a.top-c.top+a.height,vx:(Math.random()-.5),vy:-Math.random()*4-2,l:1,c:'#ffcf6b',s:Math.random()*2.5+1})}
+  parts=parts.filter(p=>p.l>0);parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.12;p.l-=.012;cx.globalAlpha=Math.max(p.l,0);cx.fillStyle=p.c;cx.shadowBlur=10;cx.shadowColor=p.c;cx.beginPath();cx.arc(p.x,p.y,p.s,0,6.28);cx.fill();cx.shadowBlur=0});
+  cx.globalAlpha=1;requestAnimationFrame(loop)}
+window.addEventListener('resize',fit);
+function renderAll(){
+  document.getElementById('eventName').value=S.eventName;
+  document.getElementById('allowRepeat').checked=!!S.allowRepeat;
+  document.getElementById('pCount').textContent=`（${S.participants.length} 人，可抽 ${pool().length} 人）`;
+  const st={};S.results.forEach(r=>{const pz=S.prizes.find(p=>p.id===r.prizeId);st[r.no]=r.status==='void'?'不在場':('中 '+(pz?pz.award:''))});
+  document.getElementById('pTable').innerHTML=S.participants.map((p,i)=>`<tr><td>${esc(p.no)}</td><td>${esc(p.name)}</td><td>${esc(p.title)}</td><td>${esc(st[p.no]||'')}</td><td><button class="btn gray" style="padding:3px 8px" onclick="delParticipant(${i})">刪</button></td></tr>`).join('')||'<tr><td colspan=5 class="muted">尚未匯入名單</td></tr>';
+  document.getElementById('prizeTable').innerHTML=S.prizes.map((p,i)=>`<tr>
+    <td><input type="text" value="${esc(p.award)}" onchange="updPrize(${i},'award',this.value)" style="width:100%"></td>
+    <td><input type="text" value="${esc(p.item)}" onchange="updPrize(${i},'item',this.value)" style="width:100%"></td>
+    <td><input type="number" min="1" value="${p.qty}" onchange="updPrize(${i},'qty',this.value)" style="width:75px"></td>
+    <td style="text-align:center"><input type="checkbox" ${p.redraw?'checked':''} onchange="updPrize(${i},'redraw',this.checked)"></td>
+    <td>${wonOf(p.id).length}</td>
+    <td><button class="btn gray" style="padding:3px 8px" onclick="movePrize(${i},-1)">↑</button> <button class="btn gray" style="padding:3px 8px" onclick="movePrize(${i},1)">↓</button> <button class="btn gray" style="padding:3px 8px" onclick="delPrize(${i})">刪除</button></td></tr>`).join('');
+  document.getElementById('resultTable').innerHTML=S.prizes.flatMap(pz=>S.results.filter(r=>r.prizeId===pz.id).map(r=>`<tr class="${r.status==='void'?'void':''}"><td>${esc(pz.award)}</td><td>${esc(pz.item)}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td><td>${esc(r.title)}</td><td>${esc(r.time)}</td><td>${r.status==='void'?'不在場':'中獎'}</td></tr>`)).join('')||'<tr><td colspan=7 class="muted">尚無紀錄</td></tr>';
+  renderStage(true);
+}
+function exportResults(){
+  const q=s=>`"${String(s??'').replace(/"/g,'""')}"`;
+  let out='\uFEFF獎項,品名,號碼,姓名,職稱,時間,狀態\n';
+  S.prizes.forEach(pz=>S.results.filter(r=>r.prizeId===pz.id).forEach(r=>out+=[pz.award,pz.item,r.no,r.name,r.title,r.time,r.status==='void'?'不在場':'中獎'].map(q).join(',')+'\n'));
+  dl(`${S.eventName}_中獎名單.csv`,out);
+}
+function dl(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));a.download=name;a.click()}
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&document.getElementById('drawPage').classList.contains('active')&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();if(!document.getElementById('drawBtn').disabled||rolling)drawToggle()}});
+fit();loop();renderAll();cloudLoad();
+</script>
+</body>
+</html>
