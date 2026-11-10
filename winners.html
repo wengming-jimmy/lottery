@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中獎名單查詢</title>
+<script src="config.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:#f3e7c3;font-family:"Noto Serif TC","PMingLiU","Microsoft JhengHei",serif;
+    background:radial-gradient(ellipse at 50% 0%,#3a1a78 0%,#1b0b40 45%,#07021a 100%) fixed}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 16px 60px}
+  h1{text-align:center;margin:0;font-size:clamp(24px,6vw,40px);color:#ffe9a8;letter-spacing:3px;text-shadow:0 0 12px #d4af37,0 0 28px #9b59ff}
+  .sub{text-align:center;opacity:.75;letter-spacing:4px;margin:6px 0 22px}
+  .search{display:flex;gap:8px;margin-bottom:12px}
+  .search input{flex:1;font-size:18px;padding:12px 14px;border-radius:30px;border:1px solid #d4af37;background:rgba(20,8,50,.7);color:#fff;font-family:inherit}
+  .search button{font-size:18px;padding:12px 22px;border-radius:30px;border:0;background:linear-gradient(135deg,#d4af37,#f7e08a);color:#2a0f55;font-weight:bold;cursor:pointer;font-family:inherit}
+  .msg{min-height:0;text-align:center;font-size:20px;margin:10px 0 20px}
+  .msg .ok{display:inline-block;padding:14px 20px;border-radius:14px;border:2px solid #f7e08a;background:rgba(212,175,55,.15);box-shadow:0 0 24px rgba(212,175,55,.5);color:#fff}
+  .msg .ok b{color:#ffe9a8;font-size:24px}
+  .msg .no{opacity:.85}
+  .prize{margin:18px 0;border:1px solid rgba(212,175,55,.5);border-radius:14px;background:rgba(20,8,50,.55);overflow:hidden}
+  .prize h2{margin:0;padding:10px 16px;font-size:20px;background:linear-gradient(90deg,rgba(212,175,55,.35),rgba(155,89,255,.25));color:#ffe9a8}
+  .prize h2 small{font-size:15px;color:#f3e7c3;margin-left:8px}
+  table{width:100%;border-collapse:collapse;font-size:17px}
+  td{padding:8px 16px;border-top:1px solid rgba(255,255,255,.08)}
+  td.n{color:#ffe9a8;width:90px}
+  tr.hl td{background:rgba(247,224,138,.25)}
+  .empty{padding:10px 16px;opacity:.6}
+  .foot{text-align:center;opacity:.55;font-size:13px;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">中獎名單</h1>
+  <div class="sub">✦ 中獎名單查詢 ✦</div>
+  <div class="search">
+    <input id="q" placeholder="輸入你的號碼或姓名" onkeydown="if(event.key==='Enter')find()">
+    <button onclick="find()">查詢</button>
+  </div>
+  <div class="msg" id="msg"></div>
+  <div id="list"><div class="empty" style="text-align:center">讀取中…</div></div>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+let D=null,hl=new Set();
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){
+  try{const r=await (await fetch(window.LOTTERY_API)).json();if(!r.ok)throw 0;D=r.data;render();
+    document.getElementById('foot').textContent='每 30 秒自動更新｜最後更新 '+new Date().toLocaleTimeString('zh-TW',{hour12:false});}
+  catch(e){document.getElementById('foot').textContent='暫時無法連線，稍後自動重試'}
+}
+function render(){
+  document.getElementById('title').textContent=D.eventName;document.title=D.eventName+'｜中獎名單';
+  document.getElementById('list').innerHTML=D.prizes.map(p=>{
+    const w=D.results.filter(r=>r.prizeId===p.id&&r.status==='won');
+    return `<div class="prize"><h2>${esc(p.award)}<small>${esc(p.item)}　${w.length}/${p.qty} 名</small></h2>`+
+      (w.length?`<table>${w.map(r=>`<tr class="${hl.has(r.id)?'hl':''}"><td class="n">${esc(r.no)}</td><td>${esc(r.name)}</td><td>${esc(r.title)}</td></tr>`).join('')}</table>`:'<div class="empty">尚未抽出</div>')+`</div>`}).join('');
+}
+function find(){
+  const q=document.getElementById('q').value.trim();const m=document.getElementById('msg');hl=new Set();
+  if(!q||!D){m.innerHTML='';render();return}
+  const norm=s=>String(s).trim().replace(/^0+(?=\d)/,'');
+  const isNo=/^\d+$/.test(q);
+  const match=r=>isNo?norm(r.no)===norm(q):r.name===q;
+  const wins=D.results.filter(r=>r.status==='won'&&match(r));
+  if(wins.length){
+    wins.forEach(r=>hl.add(r.id));
+    m.innerHTML=wins.map(r=>{const p=D.prizes.find(x=>x.id===r.prizeId)||{};
+      return `<div class="ok">🎉 恭喜 ${esc(r.no)} ${esc(r.name)}<br>抽中 <b>${esc(p.award)}</b>　${esc(p.item)}</div>`}).join('<br><br>');
+  }else{
+    const inList=D.participants.some(match);
+    m.innerHTML=`<div class="no">${inList?'目前還沒有抽中，請繼續期待 ✧':'查無這個'+(isNo?'號碼':'姓名')+'，請確認是否輸入正確'}</div>`;
+  }
+  render();
+  const h=document.querySelector('tr.hl');if(h)h.scrollIntoView({behavior:'smooth',block:'center'});
+}
+load();setInterval(()=>{load().then(()=>{if(document.getElementById('q').value.trim())find()})},30000);
+</script>
+</body>
+</html>
