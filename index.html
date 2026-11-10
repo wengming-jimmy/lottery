@@ -115,8 +115,8 @@
   .card .cdg{font-size:max(16px,calc(var(--f)*11vh));font-weight:bold;letter-spacing:4px;color:#ffe9a8;text-shadow:0 0 16px #d4af37,0 0 40px #9b59ff;font-family:"Consolas","Courier New",monospace;padding:1vh 0}
   .card.rolling{border-color:#ffcf6b;box-shadow:0 0 18px #ff9a3c}
   .card.pop{animation:reveal .8s ease-out}
-  .card .rd{position:absolute;top:4px;right:4px;font-size:12px;border:1px solid #d4af37;background:rgba(20,8,50,.85);color:#ffe9a8;border-radius:10px;padding:1px 8px;cursor:pointer;opacity:.55;font-family:inherit}
-  .card .rd:hover{opacity:1}
+  .card .rd{display:inline-block;margin-top:.8vh;font-size:max(12px,calc(var(--f)*2.6vh));border:1px solid #d4af37;background:linear-gradient(135deg,rgba(212,175,55,.25),rgba(155,89,255,.35));color:#ffe9a8;border-radius:20px;padding:.4vh 1.2vw;cursor:pointer;font-family:inherit;box-shadow:0 0 10px rgba(212,175,55,.4)}
+  .card .rd:hover{background:linear-gradient(135deg,#d4af37,#f7e08a);color:#2a0f55}
 </style>
 </head>
 <body>
@@ -334,7 +334,7 @@ function scaleFor(n){return n<=1?1:n<=2?.8:n<=4?.62:n<=6?.5:n<=9?.42:n<=12?.36:n
 function colsFor(n){return n<=1?1:n<=2?2:n<=4?2:n<=6?3:n<=9?3:n<=12?4:n<=20?5:n<=30?6:8}
 function cardHTML(r,pz,i){
   return `<div class="card" id="c_${r.id}"><div class="cno">No. ${esc(r.no)}</div><div class="cnm">${esc(r.name)}</div><div class="ctt">${esc(r.title)}</div>`+
-    (pz.redraw&&!rolling?`<button class="rd" onclick="redrawOne('${r.id}')" title="此人不在場，重抽">重抽</button>`:'')+`</div>`}
+    (pz.redraw&&!rolling?`<button class="rd" onclick="redrawOne('${r.id}')" >✦ 不在場・重抽 ✦</button>`:'')+`</div>`}
 function renderGrid(win){
   const pz=selPrize();const r=document.getElementById('roller');r.classList.remove('win');
   const list=wonOf(pz.id);
