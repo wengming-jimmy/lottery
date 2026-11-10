@@ -75,6 +75,36 @@
   .winners{margin:18px auto 0;width:min(860px,94%);font-size:18px}
   .winners span{display:inline-block;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.4);border-radius:6px;padding:4px 10px;margin:4px}
   .void{text-decoration:line-through;opacity:.5}
+  /* ===== 一屏版面（不捲動）===== */
+  .stage{height:calc(100vh - 52px);min-height:0;display:flex;flex-direction:column;padding:2vh 2vw}
+  :fullscreen .stage{height:calc(100vh - 52px)}
+  .stage h1{font-size:clamp(26px,5.2vh,54px)}
+  .sub{font-size:clamp(12px,1.8vh,18px);margin-bottom:.6vh}
+  .chips{margin:.6vh auto}
+  .chip{font-size:clamp(13px,1.9vh,18px);padding:.5vh 14px}
+  .remain{font-size:clamp(13px,1.9vh,18px);margin:0}
+  .main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:3vw}
+  .altar{flex:none;width:min(58vh,40vw);height:min(58vh,40vw);margin:0}
+  .ring.r2{inset:9%}
+  .orb{width:57%;height:57%}
+  .orb .aw{font-size:clamp(22px,4.8vh,46px)}
+  .orb .it{font-size:clamp(12px,2vh,20px);margin-top:.5vh}
+  .orb .act{font-size:clamp(11px,1.7vh,16px);margin-top:1vh}
+  .right{flex:1;max-width:900px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1.5vh}
+  .roller{width:100%;margin:0;min-height:34vh;padding:2vh}
+  .roller .digits{font-size:clamp(40px,12vh,130px)}
+  .roller .no{font-size:clamp(18px,4vh,42px)}
+  .roller .nm{font-size:clamp(36px,10vh,110px)}
+  .roller .tt{font-size:clamp(16px,3.4vh,36px)}
+  .roller .hint{font-size:clamp(16px,3vh,30px)}
+  .sec{margin:0;font-size:clamp(14px,2vh,20px)}
+  .winners{width:100%;margin:0;max-height:18vh;overflow:auto;font-size:clamp(13px,2vh,18px)}
+  @media (max-aspect-ratio:1/1){
+    .main{flex-direction:column;gap:1.5vh}
+    .altar{width:min(36vh,80vw);height:min(36vh,80vw)}
+    .roller{min-height:22vh}.roller .nm{font-size:clamp(30px,7vh,90px)}.roller .digits{font-size:clamp(36px,8vh,100px)}
+    .winners{max-height:12vh}
+  }
 </style>
 </head>
 <body>
@@ -96,6 +126,7 @@
     <div class="sub">✦ 命運之輪 ✦</div>
     <div class="chips" id="prizeChips"></div>
     <div class="remain" id="remainInfo"></div>
+    <div class="main">
     <div class="altar" id="altar">
       <svg class="ring" viewBox="0 0 440 440"><defs><path id="cp1" d="M220,220 m-200,0 a200,200 0 1,1 400,0 a200,200 0 1,1 -400,0"/></defs>
         <circle cx="220" cy="220" r="214" fill="none" stroke="#d4af37" stroke-width="2"/><circle cx="220" cy="220" r="186" fill="none" stroke="#d4af37" stroke-width="1" stroke-dasharray="4 6"/>
@@ -104,9 +135,12 @@
         <polygon points="180,6 331,267 29,267"/><polygon points="180,354 29,93 331,93"/></g></svg>
       <button class="orb" id="drawBtn" onclick="drawToggle()"><span class="aw" id="orbAward">—</span><span class="it" id="orbItem"></span><span class="act" id="orbAct">點擊施法</span></button>
     </div>
+    <div class="right">
     <div class="roller" id="roller"><div class="hint">✧ 等待命運揭曉 ✧</div></div>
     <button class="sec" id="redrawBtn" onclick="redraw()" style="display:none">✦ 此人不在場，重新施法 ✦</button>
     <div class="winners" id="stageWinners"></div>
+    </div>
+    </div>
   </div>
 </div>
 
