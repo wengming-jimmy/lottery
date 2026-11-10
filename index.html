@@ -105,6 +105,18 @@
     .roller{min-height:22vh}.roller .nm{font-size:clamp(30px,7vh,90px)}.roller .digits{font-size:clamp(36px,8vh,100px)}
     .winners{max-height:12vh}
   }
+  /* ===== 一次抽出多名 ===== */
+  .roller{max-height:64vh;overflow:auto}
+  .grid{display:grid;gap:1.2vh;width:100%}
+  .card{position:relative;background:rgba(255,255,255,.06);border:1px solid rgba(212,175,55,.65);border-radius:12px;padding:1vh .6vw;box-shadow:0 0 12px rgba(155,89,255,.35)}
+  .card .cno{font-size:max(11px,calc(var(--f)*4vh));color:#ffe9a8;letter-spacing:2px}
+  .card .cnm{font-size:max(14px,calc(var(--f)*10vh));font-weight:bold;line-height:1.15;color:#fff;text-shadow:0 0 14px #f7e08a,0 0 30px #b57bff}
+  .card .ctt{font-size:max(11px,calc(var(--f)*3.4vh));color:#e9d8a6}
+  .card .cdg{font-size:max(16px,calc(var(--f)*11vh));font-weight:bold;letter-spacing:4px;color:#ffe9a8;text-shadow:0 0 16px #d4af37,0 0 40px #9b59ff;font-family:"Consolas","Courier New",monospace;padding:1vh 0}
+  .card.rolling{border-color:#ffcf6b;box-shadow:0 0 18px #ff9a3c}
+  .card.pop{animation:reveal .8s ease-out}
+  .card .rd{position:absolute;top:4px;right:4px;font-size:12px;border:1px solid #d4af37;background:rgba(20,8,50,.85);color:#ffe9a8;border-radius:10px;padding:1px 8px;cursor:pointer;opacity:.55;font-family:inherit}
+  .card .rd:hover{opacity:1}
 </style>
 </head>
 <body>
@@ -137,7 +149,6 @@
     </div>
     <div class="right">
     <div class="roller" id="roller"><div class="hint">✧ 等待命運揭曉 ✧</div></div>
-    <button class="sec" id="redrawBtn" onclick="redraw()" style="display:none">✦ 此人不在場，重新施法 ✦</button>
     <div class="winners" id="stageWinners"></div>
     </div>
     </div>
@@ -313,34 +324,61 @@ function exportBackup(){dl(`${S.eventName}_備份.json`,JSON.stringify(S,null,1)
 function importBackup(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{S=JSON.parse(e.target.result);save();renderAll();alert('已還原')}catch(x){alert('檔案格式不對')}};r.readAsText(f);inp.value=''}
 
 // ===== 抽獎 =====
-let rolling=null,current=null,lastWin=null;
+let rolling=null,reRolling=null,justDrew=false;
 let selId=null;
 function selPrize(){return S.prizes.find(p=>p.id===selId)}
-function pickPrize(id){if(rolling)return;selId=id;lastWin=null;renderStage()}
-function showPerson(p,win){const r=document.getElementById('roller');r.classList.remove('win');
-  if(!win){r.innerHTML=`<div class="digits">${esc(p.no)}</div>`;return}
-  r.innerHTML=`<div class="no">No. ${esc(p.no)}</div><div class="nm">${esc(p.name)}</div><div class="tt">${esc(p.title)}</div>`;
-  void r.offsetWidth;r.classList.add('win');burst()}
+function pickPrize(id){if(rolling||reRolling)return;selId=id;justDrew=false;renderStage()}
+function cryptoRand(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
+function pickN(list,n){const a=list.slice();for(let i=a.length-1;i>0;i--){const j=cryptoRand(i+1);[a[i],a[j]]=[a[j],a[i]]}return a.slice(0,n)}
+function scaleFor(n){return n<=1?1:n<=2?.8:n<=4?.62:n<=6?.5:n<=9?.42:n<=12?.36:n<=20?.3:n<=30?.25:.2}
+function colsFor(n){return n<=1?1:n<=2?2:n<=4?2:n<=6?3:n<=9?3:n<=12?4:n<=20?5:n<=30?6:8}
+function cardHTML(r,pz,i){
+  return `<div class="card" id="c_${r.id}"><div class="cno">No. ${esc(r.no)}</div><div class="cnm">${esc(r.name)}</div><div class="ctt">${esc(r.title)}</div>`+
+    (pz.redraw&&!rolling?`<button class="rd" onclick="redrawOne('${r.id}')" title="此人不在場，重抽">重抽</button>`:'')+`</div>`}
+function renderGrid(win){
+  const pz=selPrize();const r=document.getElementById('roller');r.classList.remove('win');
+  const list=wonOf(pz.id);
+  if(!list.length){r.innerHTML='<div class="hint">✧ 等待命運揭曉 ✧</div>';return}
+  const n=list.length;
+  r.innerHTML=`<div class="grid" style="--f:${scaleFor(n)};grid-template-columns:repeat(${colsFor(n)},1fr)">${list.map((x,i)=>cardHTML(x,pz,i)).join('')}</div>`;
+  if(win){void r.offsetWidth;r.classList.add('win');burst()}
+}
 function drawToggle(){
-  const pz=selPrize();if(!pz)return;
-  if(rolling){ // 停
+  const pz=selPrize();if(!pz||reRolling)return;
+  if(rolling){ // 停：一次抽出剩餘全部名額
     clearInterval(rolling);rolling=null;
-    const pl=pool();const w=pl[cryptoRand(pl.length)];
-    S.results.push({id:uid(),prizeId:pz.id,no:w.no,name:w.name,title:w.title,status:'won',time:new Date().toLocaleString('zh-TW',{hour12:false})});
-    lastWin={prizeId:pz.id,no:w.no};save();document.getElementById('altar').classList.remove('casting');showPerson(w,true);renderStage(true);return;
+    const need=pz.qty-wonOf(pz.id).length;const ws=pickN(pool(),need);
+    const t=new Date().toLocaleString('zh-TW',{hour12:false});
+    ws.forEach(w=>S.results.push({id:uid(),prizeId:pz.id,no:w.no,name:w.name,title:w.title,status:'won',time:t}));
+    if(ws.length<need)setTimeout(()=>alert(`可抽人數不足，只抽出 ${ws.length} 名`),900);
+    save();justDrew=true;document.getElementById('altar').classList.remove('casting');renderStage();renderGrid(true);return;
   }
   const pl=pool();
   if(!pl.length){alert('沒有可抽的人了');return}
-  if(wonOf(pz.id).length>=pz.qty){alert('這個獎項已經抽完');return}
-  lastWin=null;document.getElementById('redrawBtn').style.display='none';
-  rolling=setInterval(()=>showPerson(pl[Math.floor(Math.random()*pl.length)]),55);
+  const need=pz.qty-wonOf(pz.id).length;
+  if(need<=0){alert('這個獎項已經抽完');return}
+  const n=Math.min(need,pl.length);
+  const r=document.getElementById('roller');r.classList.remove('win');
+  r.innerHTML=`<div class="grid" style="--f:${scaleFor(n)};grid-template-columns:repeat(${colsFor(n)},1fr)">${Array.from({length:n},(_,i)=>`<div class="card rolling"><div class="cdg" id="rg_${i}"></div></div>`).join('')}</div>`;
+  rolling=setInterval(()=>{for(let i=0;i<n;i++){const e=document.getElementById('rg_'+i);if(e)e.textContent=pl[Math.floor(Math.random()*pl.length)].no}},55);
   document.getElementById('altar').classList.add('casting');document.getElementById('orbAct').textContent='✦ 停 ✦';
 }
-function cryptoRand(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
-function redraw(){
-  if(!lastWin)return;const r=[...S.results].reverse().find(x=>x.prizeId===lastWin.prizeId&&x.no===lastWin.no&&x.status==='won');
-  if(!r)return;r.status='void';save();lastWin=null;
-  renderStage(true);drawToggle();
+function redrawOne(rid){
+  if(rolling||reRolling)return;const pz=selPrize();
+  const idx=S.results.findIndex(x=>x.id===rid);if(idx<0)return;const old=S.results[idx];
+  const pl=pool().filter(p=>p.no!==old.no);if(!pl.length){alert('沒有可抽的人了');return}
+  if(!confirm(`${old.no} ${old.name} 不在場，確定重抽？`))return;
+  old.status='void';
+  const w=pl[cryptoRand(pl.length)];
+  const nr={id:uid(),prizeId:pz.id,no:w.no,name:w.name,title:w.title,status:'won',time:new Date().toLocaleString('zh-TW',{hour12:false})};
+  S.results.splice(idx+1,0,nr);
+  const card=document.getElementById('c_'+rid);card.id='c_'+nr.id;card.classList.add('rolling');
+  card.innerHTML='<div class="cdg"></div>';const dg=card.firstChild;
+  document.getElementById('altar').classList.add('casting');
+  reRolling=setInterval(()=>{dg.textContent=pl[Math.floor(Math.random()*pl.length)].no},55);
+  setTimeout(()=>{clearInterval(reRolling);reRolling=null;document.getElementById('altar').classList.remove('casting');
+    save();renderStage();renderGrid(false);
+    const c=document.getElementById('c_'+nr.id);if(c){c.classList.add('pop');const b=c.getBoundingClientRect(),cv0=cv.getBoundingClientRect();burstAt(b.left-cv0.left+b.width/2,b.top-cv0.top+b.height/2,120)}},1500);
 }
 
 // ===== 畫面 =====
@@ -355,17 +393,18 @@ function renderStage(keepRoller){
   document.getElementById('orbAward').textContent=pz.award;
   document.getElementById('orbItem').textContent=pz.item+(pz.qty>1?`（${pz.qty} 名）`:'');
   document.getElementById('remainInfo').textContent=`已抽出 ${done} 名，尚餘 ${pz.qty-done} 名｜可抽人數 ${pool().length} 人`;
-  if(!rolling){document.getElementById('orbAct').textContent=done>=pz.qty?'已抽完':'✦ 點擊施法 ✦';btn.disabled=done>=pz.qty||!pool().length}
-  document.getElementById('redrawBtn').style.display=(lastWin&&lastWin.prizeId===pz.id&&pz.redraw&&!rolling)?'inline-block':'none';
-  document.getElementById('stageWinners').innerHTML=S.results.filter(r=>r.prizeId===pz.id).map(r=>`<span class="${r.status==='void'?'void':''}">${esc(r.no)} ${esc(r.name)}</span>`).join('');
-  if(!lastWin&&!rolling)document.getElementById('roller').innerHTML='<div class="hint">✧ 等待命運揭曉 ✧</div>';
+  if(!rolling&&!reRolling){document.getElementById('orbAct').textContent=done>=pz.qty?'已抽完':'✦ 點擊施法 ✦';btn.disabled=done>=pz.qty||!pool().length}
+  const vd=S.results.filter(r=>r.prizeId===pz.id&&r.status==='void');
+  document.getElementById('stageWinners').innerHTML=vd.length?'不在場：'+vd.map(r=>`<span class="void">${esc(r.no)} ${esc(r.name)}</span>`).join(''):'';
+  if(!rolling&&!reRolling&&!keepRoller)renderGrid(false);
 }
 // ===== 星空與魔法粒子 =====
 const cv=document.getElementById('fx'),cx=cv.getContext('2d');let stars=[],parts=[];
 function fit(){cv.width=cv.offsetWidth;cv.height=cv.offsetHeight;stars=Array.from({length:160},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.6+.3,p:Math.random()*6.28}))}
 function burst(){const r=document.getElementById('roller').getBoundingClientRect(),c=cv.getBoundingClientRect();
-  const ox=r.left-c.left+r.width/2,oy=r.top-c.top+r.height/2;
-  for(let i=0;i<220;i++){const a=Math.random()*6.28,v=Math.random()*9+2;parts.push({x:ox,y:oy,vx:Math.cos(a)*v,vy:Math.sin(a)*v-2,l:1,c:['#ffe9a8','#d4af37','#b57bff','#ffffff','#ff9ad5'][i%5],s:Math.random()*3+1})}}
+  burstAt(r.left-c.left+r.width/2,r.top-c.top+r.height/2,260)}
+function burstAt(ox,oy,cnt){
+  for(let i=0;i<cnt;i++){const a=Math.random()*6.28,v=Math.random()*9+2;parts.push({x:ox,y:oy,vx:Math.cos(a)*v,vy:Math.sin(a)*v-2,l:1,c:['#ffe9a8','#d4af37','#b57bff','#ffffff','#ff9ad5'][i%5],s:Math.random()*3+1})}}
 function loop(){cx.clearRect(0,0,cv.width,cv.height);const t=Date.now()/600;
   stars.forEach(s=>{cx.globalAlpha=.4+.6*Math.abs(Math.sin(t+s.p));cx.fillStyle='#fff';cx.beginPath();cx.arc(s.x,s.y,s.r,0,6.28);cx.fill()});
   if(rolling&&Math.random()<.6){const a=document.getElementById('altar').getBoundingClientRect(),c=cv.getBoundingClientRect();
@@ -387,7 +426,7 @@ function renderAll(){
     <td>${wonOf(p.id).length}</td>
     <td><button class="btn gray" style="padding:3px 8px" onclick="movePrize(${i},-1)">↑</button> <button class="btn gray" style="padding:3px 8px" onclick="movePrize(${i},1)">↓</button> <button class="btn gray" style="padding:3px 8px" onclick="delPrize(${i})">刪除</button></td></tr>`).join('');
   document.getElementById('resultTable').innerHTML=S.prizes.flatMap(pz=>S.results.filter(r=>r.prizeId===pz.id).map(r=>`<tr class="${r.status==='void'?'void':''}"><td>${esc(pz.award)}</td><td>${esc(pz.item)}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td><td>${esc(r.title)}</td><td>${esc(r.time)}</td><td>${r.status==='void'?'不在場':'中獎'}</td></tr>`)).join('')||'<tr><td colspan=7 class="muted">尚無紀錄</td></tr>';
-  renderStage(true);
+  renderStage();
 }
 function exportResults(){
   const q=s=>`"${String(s??'').replace(/"/g,'""')}"`;
