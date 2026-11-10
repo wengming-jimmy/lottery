@@ -158,6 +158,16 @@
 <!-- 後台 -->
 <div class="page" id="adminPage">
   <div class="card">
+    <h2>活動選單</h2>
+    <div class="row">
+      <select id="evSel" style="flex:1;min-width:260px;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:15px"></select>
+      <button class="btn" onclick="switchEvent()">切換到這個活動</button>
+      <button class="btn gold" onclick="newEvent()">＋ 新增活動</button>
+      <button class="btn gray" onclick="deleteEvent()">刪除活動</button>
+    </div>
+    <p class="muted">每個活動的名單、獎項、中獎紀錄分開保存在試算表「活動庫」分頁，每次修改都會自動存一份，等於隨時有備份。抽獎畫面和中獎查詢頁顯示的是目前切換到的活動。</p>
+  </div>
+  <div class="card">
     <h2>活動名稱</h2>
     <div class="row">
       <input type="text" id="eventName" style="flex:1;min-width:260px" placeholder="例如：2026 年終摸彩">
@@ -222,7 +232,7 @@ let S=JSON.parse(localStorage.getItem(KEY)||'null')||{
   results:[]
 };
 function uid(){return Math.random().toString(36).slice(2,10)}
-function save(){localStorage.setItem(KEY,JSON.stringify(S));cloudSave()}
+function save(){if(!S.eventId)S.eventId=uid();localStorage.setItem(KEY,JSON.stringify(S));cloudSave()}
 // ===== 雲端同步（Google 試算表）=====
 const API=(window.LOTTERY_API||'').trim();
 let saveTimer=null,saving=false,pending=false;
@@ -237,7 +247,7 @@ async function doCloudSave(){
   if(!getPw()){stat('⚠ 未輸入密碼，只存本機');return}
   saving=true;stat('☁ 同步中…');
   try{const r=await api({action:'saveAll',data:S});
-    if(r.ok)stat('☁ 已同步試算表');
+    if(r.ok){stat('☁ 已同步試算表');if(r.events){EV=r.events;renderEvents()}}
     else if(r.error==='auth'){localStorage.removeItem('lottery_pw');stat('⚠ 密碼錯誤，只存本機');alert('管理密碼錯誤，請按上方「🔑 密碼」重新輸入')}
     else stat('⚠ 同步失敗：'+r.error)}
   catch(e){stat('⚠ 離線，只存本機')}
@@ -247,10 +257,36 @@ async function cloudLoad(manual){
   if(!API){stat('本機模式');return}
   stat('☁ 讀取試算表…');
   try{const r=await (await fetch(API)).json();
-    if(r.ok){S=r.data;localStorage.setItem(KEY,JSON.stringify(S));renderAll();stat('☁ 已連線試算表');if(manual)alert('已從試算表重新載入')}
+    if(r.ok){EV=r.data.events||[];delete r.data.events;S=r.data;localStorage.setItem(KEY,JSON.stringify(S));renderAll();stat('☁ 已連線試算表');if(manual)alert('已從試算表重新載入')}
     else stat('⚠ 讀取失敗')}
   catch(e){stat('⚠ 離線，使用本機資料')}
 }
+// ===== 活動選單 =====
+let EV=[];
+function renderEvents(){const sel=document.getElementById('evSel');if(!sel)return;
+  const list=EV.slice();if(!list.some(e=>e.id===S.eventId))list.unshift({id:S.eventId||'',name:S.eventName,time:''});
+  sel.innerHTML=list.map(e=>`<option value="${esc(e.id)}" ${e.id===S.eventId?'selected':''}>${e.id===S.eventId?'▶ 目前：':''}${esc(e.name)}${e.time?'　（'+esc(e.time)+'）':''}</option>`).join('')}
+function needCloud(){if(!API){alert('活動選單需要連線試算表');return false}if(!getPw())return false;if(rolling||reRolling){alert('抽獎進行中，請先停止');return false}return true}
+async function flushSave(){clearTimeout(saveTimer);while(saving)await new Promise(r=>setTimeout(r,200));const r=await api({action:'saveAll',data:S});if(!r.ok)throw new Error(r.error);if(r.events)EV=r.events}
+async function switchEvent(){const id=document.getElementById('evSel').value;if(!id||id===S.eventId)return;if(!needCloud())return;
+  const name=(EV.find(e=>e.id===id)||{}).name;if(!confirm(`切換到「${name}」？目前活動會先存進活動庫。`))return;
+  try{stat('☁ 切換中…');await flushSave();const r=await api({action:'getEvent',id});if(!r.ok)throw new Error(r.error);
+    S=r.data;selId=null;justDrew=false;save();renderAll();alert('已切換到「'+S.eventName+'」')}
+  catch(e){alert('切換失敗：'+e.message);stat('⚠ 切換失敗')}}
+async function newEvent(){if(!needCloud())return;const name=prompt('新活動名稱');if(!name||!name.trim())return;
+  const copy=confirm('要沿用目前活動的「名單」和「獎項」嗎？\n按「確定」沿用（中獎紀錄不帶過去），按「取消」從空白開始。');
+  try{stat('☁ 建立中…');await flushSave();
+    S={eventId:uid(),eventName:name.trim(),allowRepeat:copy?S.allowRepeat:false,
+      participants:copy?S.participants.slice():[],
+      prizes:copy?S.prizes.map(p=>({...p,id:uid()})):[{id:uid(),award:'頭獎',item:'',qty:1,redraw:true},{id:uid(),award:'二獎',item:'',qty:2,redraw:true},{id:uid(),award:'三獎',item:'',qty:3,redraw:true}],
+      results:[]};
+    selId=null;justDrew=false;save();renderAll();alert('已建立並切換到「'+S.eventName+'」')}
+  catch(e){alert('建立失敗：'+e.message);stat('⚠ 建立失敗')}}
+async function deleteEvent(){const id=document.getElementById('evSel').value;if(!id)return;
+  if(id===S.eventId){alert('不能刪除目前使用中的活動，請先切換到別的活動');return}if(!needCloud())return;
+  const name=(EV.find(e=>e.id===id)||{}).name;if(!confirm(`確定刪除「${name}」？名單、獎項、中獎紀錄都會刪掉，無法復原。`))return;
+  try{const r=await api({action:'deleteEvent',id});if(!r.ok)throw new Error(r.error);EV=r.events||EV.filter(e=>e.id!==id);renderEvents()}
+  catch(e){alert('刪除失敗：'+e.message)}}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
 // 導覽
@@ -413,6 +449,7 @@ function loop(){cx.clearRect(0,0,cv.width,cv.height);const t=Date.now()/600;
   cx.globalAlpha=1;requestAnimationFrame(loop)}
 window.addEventListener('resize',fit);
 function renderAll(){
+  renderEvents();
   document.getElementById('eventName').value=S.eventName;
   document.getElementById('allowRepeat').checked=!!S.allowRepeat;
   document.getElementById('pCount').textContent=`（${S.participants.length} 人，可抽 ${pool().length} 人）`;
